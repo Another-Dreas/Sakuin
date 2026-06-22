@@ -13,6 +13,8 @@ import { ArrowLeft, ArrowDownCircle, ArrowUpCircle, History, X, Check, Calendar,
 import { cn } from "@/lib/utils";
 import { getThemeStyle, getDetailHeroStyle } from "@/lib/theme";
 import { motion, AnimatePresence } from "framer-motion";
+import { useLongPress, type LongPressEventData } from "@/hooks/useLongPress";
+import { DeleteTxConfirmModal, BottomActionSheet } from "@/components/ui/Modal";
 
 interface TargetDetailViewProps {
   activeTab: string;
@@ -20,9 +22,46 @@ interface TargetDetailViewProps {
   targetId?: string;
 }
 
+function DetailTransactionCard({
+  tx,
+  isSelected,
+  onLongPress
+}: {
+  tx: any;
+  isSelected: boolean;
+  onLongPress: (tx: any, data: LongPressEventData) => void;
+}) {
+  const handlers = useLongPress((data) => onLongPress(tx, data), undefined, { delay: 400 });
+
+  return (
+    <div {...handlers} className="cursor-pointer select-none transition-all relative">
+      <Card className={cn("transition-all duration-200", isSelected ? "border-primary ring-4 ring-primary/10 scale-[0.98] shadow-lg bg-primary/5 z-10" : "shadow-sm border-border/50 hover:border-primary/50")}>
+        <CardContent className="p-4 flex items-center space-x-4 pointer-events-none">
+          <div className={cn("w-10 h-10 rounded-full flex items-center justify-center shrink-0", 
+            tx.type === "in" ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400"
+          )}>
+            {tx.type === "in" ? <ArrowDownCircle className="w-5 h-5" /> : <ArrowUpCircle className="w-5 h-5" />}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h4 className="font-semibold text-sm truncate">{tx.note || (tx.type === "in" ? "Tambah Dana" : "Tarik Dana")}</h4>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {new Date(tx.createdAt).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+            </p>
+          </div>
+          <div className="text-right shrink-0">
+            <span className={cn("font-bold", tx.type === "in" ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
+              {tx.type === "in" ? "+" : "-"}<Currency amount={tx.amount} />
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function TargetDetailView({ activeTab, onNavigate, targetId }: TargetDetailViewProps) {
   const { goals, getGoalById, loadGoals } = useGoalStore();
-  const { transactions, loadTransactions, addTransaction } = useTransactionStore();
+  const { transactions, loadTransactions, addTransaction, deleteTransaction } = useTransactionStore();
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<"in" | "out">("in");
@@ -33,6 +72,37 @@ export default function TargetDetailView({ activeTab, onNavigate, targetId }: Ta
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const { deleteGoal } = useGoalStore();
+
+  const [selectedTx, setSelectedTx] = useState<any>(null);
+  const [showTxActionSheet, setShowTxActionSheet] = useState(false);
+  const [showTxDeleteModal, setShowTxDeleteModal] = useState(false);
+  const [isDeletingTx, setIsDeletingTx] = useState(false);
+
+  const handleLongPressTx = (tx: any, data: LongPressEventData) => {
+    setSelectedTx(tx);
+    setShowTxActionSheet(true);
+  };
+
+  const handleDeleteTxRequest = () => {
+    setShowTxActionSheet(false);
+    setShowTxDeleteModal(true);
+  };
+
+  const handleDeleteTx = async () => {
+    if (!selectedTx || !selectedTx.id) return;
+    setIsDeletingTx(true);
+    try {
+      await deleteTransaction(selectedTx.id);
+      setToastMessage("Transaksi berhasil dihapus");
+      setTimeout(() => setToastMessage(""), 2000);
+    } catch (error) {
+      console.error("Gagal menghapus transaksi:", error);
+    } finally {
+      setIsDeletingTx(false);
+      setShowTxDeleteModal(false);
+      setSelectedTx(null);
+    }
+  };
 
   useEffect(() => {
     if (activeTab === 'target_detail') {
@@ -277,28 +347,17 @@ export default function TargetDetailView({ activeTab, onNavigate, targetId }: Ta
                 <p className="text-sm text-muted-foreground">Belum ada transaksi untuk target ini.</p>
               </div>
             ) : (
-              goalTransactions.map((tx) => (
-                <Card key={tx.id} className="shadow-sm border-border/50">
-                  <CardContent className="p-4 flex items-center space-x-4">
-                    <div className={cn("w-10 h-10 rounded-full flex items-center justify-center shrink-0", 
-                      tx.type === "in" ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400"
-                    )}>
-                      {tx.type === "in" ? <ArrowDownCircle className="w-5 h-5" /> : <ArrowUpCircle className="w-5 h-5" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-sm truncate">{tx.note || (tx.type === "in" ? "Tambah Dana" : "Tarik Dana")}</h4>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {new Date(tx.createdAt).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <span className={cn("font-bold", tx.type === "in" ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
-                        {tx.type === "in" ? "+" : "-"}<Currency amount={tx.amount} />
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
+              goalTransactions.map((tx) => {
+                const isSelected = selectedTx?.id === tx.id && (showTxActionSheet || showTxDeleteModal);
+                return (
+                  <DetailTransactionCard
+                    key={tx.id}
+                    tx={tx}
+                    isSelected={isSelected}
+                    onLongPress={handleLongPressTx}
+                  />
+                );
+              })
             )}
           </div>
         </div>
@@ -538,6 +597,33 @@ export default function TargetDetailView({ activeTab, onNavigate, targetId }: Ta
           </motion.div>
         )}
       </AnimatePresence>
+      {/* Transaction Action Sheet */}
+      <BottomActionSheet isOpen={showTxActionSheet} onClose={() => setShowTxActionSheet(false)}>
+        <button
+          type="button"
+          onClick={(e) => { e.preventDefault(); handleDeleteTxRequest(); }}
+          className="w-full flex items-center justify-center gap-2 py-4 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-colors text-center"
+        >
+          <Trash2 className="w-5 h-5 text-rose-600" />
+          <span className="font-semibold text-rose-600">Hapus Transaksi</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowTxActionSheet(false)}
+          className="w-full py-4 mt-2 rounded-full font-bold bg-slate-100 dark:bg-slate-800 text-foreground hover:opacity-80 transition-opacity"
+        >
+          Batal
+        </button>
+      </BottomActionSheet>
+
+      {/* Delete Transaction Confirm Modal */}
+      <DeleteTxConfirmModal
+        isOpen={showTxDeleteModal}
+        onClose={() => setShowTxDeleteModal(false)}
+        onConfirm={handleDeleteTx}
+        isDeleting={isDeletingTx}
+        tx={selectedTx}
+      />
 
     </div>
   );

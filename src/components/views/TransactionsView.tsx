@@ -8,13 +8,10 @@ import { Currency } from "@/components/ui/Currency";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
-import { useLongPress } from "@/hooks/useLongPress";
-import { DeleteTxConfirmModal, BottomActionSheet } from "@/components/ui/Modal";
 import { Clock, TrendingUp, Search, Filter, CalendarDays, FilterX, ArrowDownCircle, ArrowUpCircle, SlidersHorizontal, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import type { LongPressEventData } from "@/hooks/useLongPress";
 
 function TransactionCardItem({
   tx,
@@ -26,20 +23,17 @@ function TransactionCardItem({
   tx: any;
   i: number;
   goalName: string;
-  isSelected: boolean;
-  onLongPress: (tx: any, data: LongPressEventData) => void;
+  goalName: string;
 }) {
   const date = new Date(tx.createdAt);
   const isToday = date.toDateString() === new Date().toDateString();
   const dateStr = isToday ? "Hari Ini" : date.toLocaleDateString("id-ID", { day: "numeric", month: "short" });
   const timeStr = date.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
 
-  const handlers = useLongPress((data) => onLongPress(tx, data), undefined, { delay: 400 });
-
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.03, 0.3) }}>
-      <div {...handlers} className="cursor-pointer select-none transition-all relative">
-        <Card className={cn("transition-all duration-200", isSelected ? "border-primary ring-4 ring-primary/10 scale-[0.98] shadow-lg bg-primary/5 z-10" : "hover:border-primary/50")}>
+      <div className="transition-all relative">
+        <Card className="transition-all duration-200 hover:border-primary/50">
           <CardContent className="p-4 flex items-center space-x-3 pointer-events-none">
             <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${tx.type === "in" ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400"}`}>
               {tx.type === "in" ? <ArrowDownCircle className="w-5 h-5" /> : <ArrowUpCircle className="w-5 h-5" />}
@@ -74,37 +68,6 @@ export default function TransactionsPage({ activeTab, onNavigate }: { activeTab:
   const [goalFilter, setGoalFilter] = useState<string>("all");
   const [showGoalFilter, setShowGoalFilter] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-
-  const { deleteTransaction } = useTransactionStore();
-  const [selectedTx, setSelectedTx] = useState<any>(null);
-  const [showTxDeleteModal, setShowTxDeleteModal] = useState(false);
-  const [isDeletingTx, setIsDeletingTx] = useState(false);
-
-  const [showActionSheet, setShowActionSheet] = useState(false);
-
-  const handleLongPressTx = (tx: any, data: LongPressEventData) => {
-    setSelectedTx(tx);
-    setShowActionSheet(true);
-  };
-
-  const handleDeleteRequest = () => {
-    setShowActionSheet(false);
-    setShowTxDeleteModal(true);
-  };
-
-  const handleDeleteTx = async () => {
-    if (!selectedTx || !selectedTx.id) return;
-    setIsDeletingTx(true);
-    try {
-      await deleteTransaction(selectedTx.id);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsDeletingTx(false);
-      setShowTxDeleteModal(false);
-      setSelectedTx(null);
-    }
-  };
 
   useEffect(() => {
     // Only load data when this tab is active
@@ -161,31 +124,6 @@ export default function TransactionsPage({ activeTab, onNavigate }: { activeTab:
 
   return (
     <div className="flex flex-col h-full w-full bg-background overflow-hidden relative">
-      <BottomActionSheet isOpen={showActionSheet} onClose={() => setShowActionSheet(false)}>
-        <button
-          type="button"
-          onClick={(e) => { e.preventDefault(); handleDeleteRequest(); }}
-          className="w-full flex items-center justify-center gap-2 py-4 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-colors text-center"
-        >
-          <Trash2 className="w-5 h-5 text-rose-600" />
-          <span className="font-semibold text-rose-600">Hapus Transaksi</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowActionSheet(false)}
-          className="w-full py-4 mt-2 rounded-full font-bold bg-slate-100 dark:bg-slate-800 text-foreground hover:opacity-80 transition-opacity"
-        >
-          Batal
-        </button>
-      </BottomActionSheet>
-
-      <DeleteTxConfirmModal
-        isOpen={showTxDeleteModal}
-        onClose={() => setShowTxDeleteModal(false)}
-        onConfirm={handleDeleteTx}
-        isDeleting={isDeletingTx}
-        tx={selectedTx}
-      />
 
       {/* Fixed Header & Filters */}
       <div className={cn("flex-none z-20 bg-background pb-3 transition-shadow duration-200", isScrolled ? "shadow-md border-b border-border/50" : "")}>
@@ -268,16 +206,12 @@ export default function TransactionsPage({ activeTab, onNavigate }: { activeTab:
             const dateStr = isToday ? "Hari Ini" : date.toLocaleDateString("id-ID", { day: "numeric", month: "short" });
             const timeStr = date.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
 
-            const isSelected = selectedTx?.id === tx.id && (showActionSheet || showTxDeleteModal);
-
             return (
               <TransactionCardItem
                 key={tx.id}
                 tx={tx}
                 i={i}
                 goalName={goal?.name ?? "Target Dihapus"}
-                isSelected={isSelected}
-                onLongPress={handleLongPressTx}
               />
             );
           })
